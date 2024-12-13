@@ -1,0 +1,109 @@
+import requests
+import tkinter as tk
+from tkinter import messagebox, font
+from tkinter import ttk
+import threading
+
+API_KEY = '57d06ee57d4bf81e28b399382b5a04db' 
+
+def get_lat_lon(city_name, state_name=None):
+    location_query = city_name
+    if state_name:
+        location_query += f",{state_name}"
+
+    geocoding_url = f"http://api.openweathermap.org/data/2.5/weather?q={location_query}&appid={API_KEY}"
+    response = requests.get(geocoding_url).json()
+    
+    if response.get('cod') != 200:
+        return None, None
+    
+    lat = response['coord']['lat']
+    lon = response['coord']['lon']
+    return lat, lon
+
+def kelvin_to_fahrenheit(kelvin):
+    return (kelvin - 273.15) * 1.8 + 32
+
+def get_weather_data(city_name, state_name=None):
+    lat, lon = get_lat_lon(city_name, state_name)
+    if lat is None or lon is None:
+        messagebox.showerror("Error", "City not found.")
+        return  # Exit if city not found
+    
+    weather_url = f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&exclude=timezone,time_zone_offset,current.sunrise,current.pressure,current.dew_point,current.uvi,current.visibility,current.wind_speed,current.wind_gust,current.wind_deg,minutely,hourly,daily&appid={API_KEY}"
+    
+    response = requests.get(weather_url).json()
+
+    if 'current' in response:
+        current_weather = response['current']
+        temperature = kelvin_to_fahrenheit(current_weather['temp'])
+        weather_description = current_weather['weather'][0]['description']
+
+        # Update GUI in main thread
+        temp_label.config(text=f"Temperature: {temperature:.2f}°F")
+        desc_label.config(text=f"Weather: {weather_description.capitalize()}")
+    else:
+        messagebox.showerror("Error", "Unable to fetch weather data.")
+
+def on_get_weather_button_click():
+    city_name = city_name_entry.get()
+    state_name = state_name_entry.get()
+    if city_name:
+        get_weather_data(city_name, state_name)
+    else:
+        messagebox.showwarning("Input Error", "Please enter a city name.")
+
+def fetch_weather_in_thread():
+    city_name = city_name_entry.get()
+    state_name = state_name_entry.get()
+    if city_name:
+        # Running the get_weather_data function in a separate thread
+        threading.Thread(target=get_weather_data, args=(city_name, state_name)).start()
+    else:
+        messagebox.showwarning("Input Error", "Please enter a city name.")
+
+# Setting up the main window
+app = tk.Tk()
+app.title("Weather App")
+app.geometry("400x400")  # Set fixed window size
+app.config(bg="#000000")  # Set background color
+
+# Frame for input fields and button
+input_frame = tk.Frame(app, bg="gray")
+input_frame.pack(pady=20)
+
+# City input label and entry
+city_label = tk.Label(input_frame, text="Enter City Name:", bg="black", font=("Helvetica", 12))
+city_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+
+city_name_entry = tk.Entry(input_frame, font=("Helvetica", 12), width=20)
+city_name_entry.grid(row=0, column=1, padx=10, pady=5)
+
+# State input label and entry (optional)
+state_label = tk.Label(input_frame, text="Enter State/Region (Optional):", bg="black", font=("Helvetica", 12))
+state_label.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+
+state_name_entry = tk.Entry(input_frame, font=("Helvetica", 12), width=20)
+state_name_entry.grid(row=1, column=1, padx=10, pady=5)
+
+# Get Weather Button
+get_weather_button = tk.Button(input_frame, text="Get Weather", command=fetch_weather_in_thread, font=("Helvetica", 12, "bold"), bg="black", fg="gray", relief="raised", width=15)
+get_weather_button.grid(row=2, column=0, columnspan=2, pady=20)
+
+# Frame for weather results
+result_frame = tk.Frame(app, bg="gray")
+result_frame.pack(pady=10)
+
+# Temperature label
+temp_label = tk.Label(result_frame, text="Temperature: -- °F", bg="black", font=("Helvetica", 14, "bold"))
+temp_label.pack(pady=10)
+
+# Weather description label
+desc_label = tk.Label(result_frame, text="Weather: --", bg="black", font=("Helvetica", 14))
+desc_label.pack(pady=10)
+
+# Footer text for credits or version
+footer_label = tk.Label(app, text="Weather App v1.0", bg="#f0f0f0", font=("Helvetica", 10), fg="gray")
+footer_label.pack(side="bottom", pady=10)
+
+app.mainloop()
